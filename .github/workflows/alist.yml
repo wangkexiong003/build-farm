@@ -1,0 +1,45 @@
+name: build alist windows amd64 w/o upx
+
+on:
+  workflow_dispatch:
+
+jobs:
+  alist_release:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+        go-version: [1.19]
+    name: Build alist Release
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo snap install zig --classic --beta
+          docker pull crazymax/xgo:latest
+          go install github.com/crazy-max/xgo@latest
+
+      - name: Build
+        run: |
+          git clone https://github.com/alist-org/alist.git
+          cd alist
+          git checkout $(git describe --tags --abbrev=0)
+          cp ../alist.patch/build.sh .
+          bash build.sh release
+          cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: alist-windows-amd64
+          path: alist/build/winamd64/alist.exe
+
