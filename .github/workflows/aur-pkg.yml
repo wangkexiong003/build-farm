@@ -1,0 +1,85 @@
+name: build AUR package
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.issue.title, '[aur]')
+    steps:
+      - name: label issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ["aur"]
+            })
+      - name: get package name
+        id: get-name
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs')
+            const issueBody = context.payload.issue.body
+            if (typeof issueBody === 'string' && issueBody.substring(0,2) === '#!') {
+              fs.writeFileSync('customize.sh', issueBody)
+            }
+            core.setOutput('PKG_NAME', context.payload.issue.title.substring(5))
+      - name: build package
+        id: build-package
+        uses: wangkexiong002/action4aur@master
+        with:
+          package: ${{ steps.get-name.outputs.PKG_NAME }}
+      - name: deliver artifacts
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.get-name.outputs.PKG_NAME }}
+          path: "release/*.zst"
+          if-no-files-found: error
+      - name: get artifacts already in aur repository
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: aur
+          fileName: "*.zst"
+      - name: update index
+        run: |
+          cp -f release/*.zst .
+          docker run -t -v $PWD:/working archlinux bash -c "cd /working; repo-add aur.db.tar.gz *.zst"
+      - name: update aur repository
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: aur
+          artifacts: "aur.*, release/*.zst"
+          token: ${{ github.token }}
+      - name: close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            let pkgs = fs.readdirSync('release').map(t => '* ' + t).join('\n')
+            pkgs = '### Build packages: \n' + pkgs
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: pkgs
+            })
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "closed"
+            })
+
