@@ -33,7 +33,7 @@ jobs:
             if (typeof issueBody === 'string' && issueBody.substring(0,2) === '#!') {
               fs.writeFileSync('customize.sh', issueBody)
             }
-            const packages = context.payload.issue.title.substring(5)
+            const packages = context.payload.issue.title.substring('[aur]'.length).trim()
             core.setOutput('PKG_NAME', JSON.stringify(packages))
       - name: Build package
         uses: wangkexiong002/action4aur@master
