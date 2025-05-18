@@ -1,0 +1,63 @@
+name: build WSL4Redroid
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'WSL2 Kernel'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils git
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Clone WSL2 Kernel repository
+      run: |
+        git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
+        cd WSL2-Linux-Kernel
+
+        INPUT_TAG="${{ github.event.inputs.tag }}"
+
+        if [ -n "${INPUT_TAG}" ] && git tag -l "${INPUT_TAG}" | grep -q "${INPUT_TAG}"; then
+          echo "Using input tag: ${INPUT_TAG}"
+          git checkout "${INPUT_TAG}"
+          echo "KERNEL_TAG=${INPUT_TAG}" >> ${GITHUB_ENV}
+        else
+          echo "Input tag invalid or empty. Using latest tag instead."
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          git checkout "${LATEST_TAG}"
+          echo "KERNEL_TAG=${LATEST_TAG}" >> ${GITHUB_ENV}
+        fi
+
+    - name: Prepare kernel config and merge additional options
+      run: |
+        cd WSL2-Linux-Kernel
+        cp Microsoft/config-wsl .config
+        yes "" | make olddefconfig
+
+        echo "Merging additional config from wsl.kernel/redroid.conf..."
+        scripts/kconfig/merge_config.sh -m .config ${GITHUB_WORKSPACE}/wsl.kernel/redroid.conf
+
+        echo "Finalizing config..."
+        yes "" | make olddefconfig
+
+    - name: Build the kernel
+      working-directory: ./WSL2-Linux-Kernel
+      run: |
+        make -j$(nproc)
+
+    - name: Upload built kernel
+      uses: actions/upload-artifact@v4
+      with:
+        name: wsl-kernel-${{ env.KERNEL_TAG }}
+        path: WSL2-Linux-Kernel/arch/x86_64/boot/bzImage
