@@ -1,0 +1,88 @@
+name: build AUR repository
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  CheckPackageParam:
+    runs-on: ubuntu-latest
+    env:
+      PKG_PARAM:  ${{ vars.PKG_PARAM }}
+    steps:
+      - name: Get packages parameters
+        id: build-packages
+        run: |
+          if [ -z ${PKG_PARAM} ]; then
+            PKG_PARAM="albert,wps-office-cn"
+          fi
+
+          PKG_PARAM=$(echo ${PKG_PARAM} | jq -cR 'split(",") | unique | { name: . }')
+          echo "all=${PKG_PARAM}" >> ${GITHUB_OUTPUT}
+    outputs:
+      all: ${{ steps.build-packages.outputs.all }}
+
+  CleanRelease:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete release with assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release_tag = 'aur'
+
+            const releases = await github.paginate("GET /repos/{owner}/{repo}/releases", {
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+            })
+            const release = releases.find(r => r.tag_name === release_tag)
+            if (typeof release != 'undefined') {
+              github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                release_id: release.id,
+              })
+            }
+
+  Build:
+    needs: CheckPackageParam
+    strategy:
+      matrix: ${{ fromJson(needs.CheckPackageParam.outputs.all) }}
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build package
+        uses: wangkexiong002/action4aur@master
+        with:
+          package: ${{ matrix.name }}
+      - name: Upload to aur release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: aur
+          artifacts: "release/*.zst"
+          token: ${{ github.token }}
+
+  PostBuild:
+    if: ${{ always() }}
+    needs: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get artifacts already in aur repository
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: aur
+          fileName: "*.zst"
+      - name: Update index
+        run: |
+          docker run -t -v $PWD:/working archlinux bash -c "cd /working; repo-add aur.db.tar.gz *.zst"
+      - name: Update aur repository
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: aur
+          artifacts: "aur.*"
+          token: ${{ github.token }}
+

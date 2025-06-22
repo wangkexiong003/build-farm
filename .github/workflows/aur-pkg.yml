@@ -1,0 +1,94 @@
+name: build AUR package
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.issue.title, '[aur]')
+    steps:
+      - name: Label issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ["aur"]
+            })
+      - name: Get package name
+        id: get-name
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const issueBody = context.payload.issue.body
+            if (typeof issueBody === 'string' && issueBody.substring(0,2) === '#!') {
+              fs.writeFileSync('customize.sh', issueBody)
+            }
+            const packages = context.payload.issue.title.substring('[aur]'.length).trim()
+            core.setOutput('PKG_NAME', JSON.stringify(packages))
+      - name: Build package
+        uses: wangkexiong002/action4aur@master
+        with:
+          package: ${{ steps.get-name.outputs.PKG_NAME }}
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: "release/*.zst"
+      - name: Upload to aur release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: aur
+          artifacts: "release/*.zst"
+          token: ${{ github.token }}
+      - name: Update issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            let pkgs = fs.readdirSync('release').map(t => '* ' + t).join('\n')
+            pkgs = '### Build ${{ steps.get-name.outputs.PKG_NAME }}: \n' + pkgs
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: pkgs
+            })
+      - name: Get artifacts already in aur repository
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: aur
+          fileName: "*.zst"
+      - name: Update index
+        run: |
+          docker run -t -v $PWD:/working archlinux bash -c "cd /working; repo-add aur.db.tar.gz *.zst"
+      - name: Update aur repository
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: aur
+          artifacts: "aur.*"
+          token: ${{ github.token }}
+      - name: Close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "closed"
+            })
+
