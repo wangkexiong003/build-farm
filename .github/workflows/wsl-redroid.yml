@@ -25,7 +25,7 @@ jobs:
       run: |
         git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
 
-        cd WSL2-Linux-Kernel
+        pushd WSL2-Linux-Kernel
         INPUT_TAG="${{ github.event.inputs.tag }}"
         if [ -n "${INPUT_TAG}" ] && git tag -l "${INPUT_TAG}" | grep -q "${INPUT_TAG}"; then
           echo "Using input tag: ${INPUT_TAG}"
@@ -35,6 +35,8 @@ jobs:
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
           echo "KERNEL_TAG=${LATEST_TAG}" >> ${GITHUB_ENV}
         fi
+        popd
+
         rm -rf WSL2-Linux-Kernel
 
     - name: Restore cached build
