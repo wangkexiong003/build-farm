@@ -21,27 +21,42 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Clone WSL2 Kernel repository
+    - name: Prepare kernel version to build
+      run: |
+        git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
+
+        cd WSL2-Linux-Kernel
+        INPUT_TAG="${{ github.event.inputs.tag }}"
+        if [ -n "${INPUT_TAG}" ] && git tag -l "${INPUT_TAG}" | grep -q "${INPUT_TAG}"; then
+          echo "Using input tag: ${INPUT_TAG}"
+          echo "KERNEL_TAG=${INPUT_TAG}" >> ${GITHUB_ENV}
+        else
+          echo "Input tag is invalid or empty. Using latest tag instead."
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "KERNEL_TAG=${LATEST_TAG}" >> ${GITHUB_ENV}
+        fi
+        rm -rf WSL2-Linux-Kernel
+
+    - name: Restore cached build
+      id: cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: WSL2-Linux-Kernel
+        key: kernel-${{ env.KERNEL_TAG }}
+
+    - name: Clone kernel repository
+      if: steps.cache-restore.outputs.cache-hit != 'true'
       run: |
         git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
         cd WSL2-Linux-Kernel
+        git checkout ${{ env.KERNEL_TAG }}
 
-        INPUT_TAG="${{ github.event.inputs.tag }}"
-
-        if [ -n "${INPUT_TAG}" ] && git tag -l "${INPUT_TAG}" | grep -q "${INPUT_TAG}"; then
-          echo "Using input tag: ${INPUT_TAG}"
-          git checkout "${INPUT_TAG}"
-          echo "KERNEL_TAG=${INPUT_TAG}" >> ${GITHUB_ENV}
-        else
-          echo "Input tag invalid or empty. Using latest tag instead."
-          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          git checkout "${LATEST_TAG}"
-          echo "KERNEL_TAG=${LATEST_TAG}" >> ${GITHUB_ENV}
-        fi
-
-    - name: Prepare kernel config and merge additional options
+    - name: Prepare kernel config
       run: |
         cd WSL2-Linux-Kernel
+        echo "Build commit"
+        git log -1
+
         cp Microsoft/config-wsl .config
         yes "" | make olddefconfig
 
@@ -51,13 +66,25 @@ jobs:
         echo "Finalizing config..."
         yes "" | make olddefconfig
 
-    - name: Build the kernel
-      working-directory: ./WSL2-Linux-Kernel
+    - name: Build kernel
       run: |
+        cd WSL2-Linux-Kernel
         make -j$(nproc)
+        make INSTALL_MOD_PATH="$PWD/modules" modules_install
+        rm -rf modules.vhdx
+        sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
 
     - name: Upload built kernel
       uses: actions/upload-artifact@v4
       with:
         name: wsl-kernel-${{ env.KERNEL_TAG }}
-        path: WSL2-Linux-Kernel/arch/x86_64/boot/bzImage
+        path: |
+          WSL2-Linux-Kernel/arch/x86_64/boot/bzImage
+          WSL2-Linux-Kernel/modules.vhdx
+
+    - name: Update build cache
+      uses: actions/cache/save@v4
+      with:
+        path: WSL2-Linux-Kernel
+        key: kernel-${{ env.KERNEL_TAG }}
+
