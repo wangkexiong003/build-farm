@@ -15,10 +15,10 @@ jobs:
     steps:
     - name: Prepare dependencies
       run: |
-        sudo apt update
-        sudo apt install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils git
         sudo mkdir -p /mnt/workdir
         sudo chown $USER:$GROUPS /mnt/workdir
+        sudo apt update
+        sudo apt install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils git
 
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
         path: /mnt/workdir/WSL2-Linux-Kernel
         key: kernel-${{ env.KERNEL_TAG }}
 
-    - name: Clone kernel repository
+    - name: Restore kernel repository
       if: steps.cache-restore.outputs.cache-hit != 'true'
       working-directory: /mnt/workdir
       run: |
@@ -115,5 +115,5 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: /mnt/workdir/WSL2-Linux-Kernel
-        key: kernel-${{ env.KERNEL_TAG }}
+        key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
