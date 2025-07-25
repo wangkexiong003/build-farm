@@ -37,7 +37,7 @@ jobs:
         fi
         popd
 
-        rm -rf WSL2-Linux-Kernel
+        mv WSL2-Linux-Kernel WSL2-Linux-Kernel.tmp
 
     - name: Restore cached build
       id: cache-restore
@@ -49,12 +49,13 @@ jobs:
     - name: Clone kernel repository
       if: steps.cache-restore.outputs.cache-hit != 'true'
       run: |
-        git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
+        mv WSL2-Linux-Kernel.tmp WSL2-Linux-Kernel
         cd WSL2-Linux-Kernel
         git checkout ${{ env.KERNEL_TAG }}
 
     - name: Prepare kernel config
       run: |
+        rm -rf WSL2-Linux-Kernel.tmp
         cd WSL2-Linux-Kernel
         echo "Build commit"
         git log -1
@@ -71,18 +72,21 @@ jobs:
     - name: Build kernel
       run: |
         cd WSL2-Linux-Kernel
+
         make -j$(nproc)
         make INSTALL_MOD_PATH="$PWD/modules" modules_install
-        rm -rf modules.vhdx
-        sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
+
+        rm -rf zzzTarget
+        find ./modules -name '*.ko' -exec strip --strip-unneeded {} +
+        sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) zzzTarget/modules.vhdx
+        mv arch/x86_64/boot/bzImage zzzTarget
+        rm -rf modules
 
     - name: Upload built kernel
       uses: actions/upload-artifact@v4
       with:
         name: wsl-kernel-${{ env.KERNEL_TAG }}
-        path: |
-          WSL2-Linux-Kernel/arch/x86_64/boot/bzImage
-          WSL2-Linux-Kernel/modules.vhdx
+        path: zzzTarget
 
     - name: Update build cache
       uses: actions/cache/save@v4
