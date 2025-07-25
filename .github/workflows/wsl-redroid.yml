@@ -101,11 +101,8 @@ jobs:
 
         rm -rf zzzTarget
         mkdir zzzTarget
-        ls -al arch/x86_64/boot
-        mv arch/x86_64/boot/bzImage zzzTarget
-        ls -al zzzTarget
+        cp arch/x86_64/boot/bzImage zzzTarget
         mv modules.vhdx zzzTarget
-        ls -al zzzTarget
         rm -rf modules
 
     - name: Upload built kernel
