@@ -13,18 +13,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install dependencies
+    - name: Prepare dependencies
       run: |
         sudo apt update
         sudo apt install -y build-essential flex bison dwarves libssl-dev libelf-dev cpio qemu-utils git
+        sudo mkdir -p /mnt/workdir
+        sudo chown $USER:$GROUPS /mnt/workdir
 
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: 检查服务器配置
+      run: |
+        echo "主机信息："
+        uname -a
+        echo -e "\n"
+        echo "--------------------------CPU信息--------------------------"
+        echo "CPU物理数量:$(cat /proc/cpuinfo| grep "physical id"| sort| uniq| wc -l)"
+        echo -e "CPU核心及版本信息：$(cat /proc/cpuinfo | grep name | cut -f2 -d: | uniq -c) \n"
+        echo "--------------------------内存信息--------------------------"
+        echo "已安装内存详细信息："
+        sudo lshw -short -C memory | grep GiB
+        echo "--------------------------硬盘信息--------------------------"
+        echo -e  "硬盘数量：$(ls /dev/sd* | grep -v [1-9] | wc -l) \n"
+        echo "硬盘详情："
+        df -Th
+
     - name: Prepare kernel version to build
+      working-directory: /mnt/workdir
       run: |
         git clone https://github.com/microsoft/WSL2-Linux-Kernel.git
-
         pushd WSL2-Linux-Kernel
         INPUT_TAG="${{ github.event.inputs.tag }}"
         if [ -n "${INPUT_TAG}" ] && git tag -l "${INPUT_TAG}" | grep -q "${INPUT_TAG}"; then
@@ -43,17 +61,19 @@ jobs:
       id: cache-restore
       uses: actions/cache/restore@v4
       with:
-        path: WSL2-Linux-Kernel
+        path: /mnt/workdir/WSL2-Linux-Kernel
         key: kernel-${{ env.KERNEL_TAG }}
 
     - name: Clone kernel repository
       if: steps.cache-restore.outputs.cache-hit != 'true'
+      working-directory: /mnt/workdir
       run: |
         mv WSL2-Linux-Kernel.tmp WSL2-Linux-Kernel
         cd WSL2-Linux-Kernel
         git checkout ${{ env.KERNEL_TAG }}
 
     - name: Prepare kernel config
+      working-directory: /mnt/workdir
       run: |
         rm -rf WSL2-Linux-Kernel.tmp
         cd WSL2-Linux-Kernel
@@ -70,6 +90,7 @@ jobs:
         yes "" | make olddefconfig
 
     - name: Build kernel
+      working-directory: /mnt/workdir
       run: |
         cd WSL2-Linux-Kernel
 
@@ -86,11 +107,11 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: wsl-kernel-${{ env.KERNEL_TAG }}
-        path: zzzTarget
+        path: /mnt/workdir/WSL2-Linux-Kernel/zzzTarget
 
     - name: Update build cache
       uses: actions/cache/save@v4
       with:
-        path: WSL2-Linux-Kernel
+        path: /mnt/workdir/WSL2-Linux-Kernel
         key: kernel-${{ env.KERNEL_TAG }}
 
