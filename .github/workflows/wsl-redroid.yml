@@ -96,13 +96,16 @@ jobs:
 
         make -j$(nproc)
         make INSTALL_MOD_PATH="$PWD/modules" modules_install
-
         find ./modules -name '*.ko' -exec strip --strip-unneeded {} +
         sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
+
         rm -rf zzzTarget
         mkdir zzzTarget
+        ls -al arch/x86_64/boot
         mv arch/x86_64/boot/bzImage zzzTarget
+        ls -al zzzTarget
         mv modules.vhdx zzzTarget
+        ls -al zzzTarget
         rm -rf modules
 
     - name: Upload built kernel
