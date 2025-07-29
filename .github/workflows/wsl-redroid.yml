@@ -54,15 +54,18 @@ jobs:
           echo "KERNEL_TAG=${LATEST_TAG}" >> ${GITHUB_ENV}
         fi
         popd
-
         mv WSL2-Linux-Kernel WSL2-Linux-Kernel.tmp
+
+        echo "TIMESTAMP=$(date +%s)" >> ${GITHUB_ENV}}
 
     - name: Restore cached build
       id: cache-restore
       uses: actions/cache/restore@v4
       with:
         path: /mnt/workdir/WSL2-Linux-Kernel
-        key: kernel-${{ env.KERNEL_TAG }}
+        key: kernel-${{ env.KERNEL_TAG }}-${{ env.TIMESTAMP }}
+        restroe-keys: |
+          kernel-${{ env.KERNEL_TAG }}
 
     - name: Restore kernel repository
       if: steps.cache-restore.outputs.cache-hit != 'true'
