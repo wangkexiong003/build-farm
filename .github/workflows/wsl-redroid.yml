@@ -56,7 +56,7 @@ jobs:
         popd
         mv WSL2-Linux-Kernel WSL2-Linux-Kernel.tmp
 
-        echo "TIMESTAMP=$(date +%s)" >> ${GITHUB_ENV}}
+        echo "TIMESTAMP=$(date +%s)" >> ${GITHUB_ENV}
 
     - name: Restore cached build
       id: cache-restore
