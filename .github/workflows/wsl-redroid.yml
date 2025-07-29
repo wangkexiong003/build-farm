@@ -67,13 +67,14 @@ jobs:
         restore-keys: |
           kernel-${{ env.KERNEL_TAG }}
 
-    - name: Restore kernel repository
-      if: steps.cache-restore.outputs.cache-hit != 'true'
+    - name: Check cached repository
       working-directory: /mnt/workdir
       run: |
-        mv WSL2-Linux-Kernel.tmp WSL2-Linux-Kernel
-        cd WSL2-Linux-Kernel
-        git checkout ${{ env.KERNEL_TAG }}
+        if [ ! -d WSL2-Linux-Kernel ]; then
+          mv WSL2-Linux-Kernel.tmp WSL2-Linux-Kernel
+          cd WSL2-Linux-Kernel
+          git checkout ${{ env.KERNEL_TAG }}
+        fi
 
     - name: Prepare kernel config
       working-directory: /mnt/workdir
