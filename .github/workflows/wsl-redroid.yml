@@ -64,7 +64,7 @@ jobs:
       with:
         path: /mnt/workdir/WSL2-Linux-Kernel
         key: kernel-${{ env.KERNEL_TAG }}-${{ env.TIMESTAMP }}
-        restroe-keys: |
+        restore-keys: |
           kernel-${{ env.KERNEL_TAG }}
 
     - name: Restore kernel repository
