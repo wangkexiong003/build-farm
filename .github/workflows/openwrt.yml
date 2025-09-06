@@ -62,6 +62,8 @@ jobs:
         run: |
           mkdir -p ipks_feed
           mkdir -p ipks_built
+          find openwrt-sdk/bin -name *.ipk > ipks_out
+
           FEED_REGEXP=$(echo "${FEEDS_EXTRA}" | sed 's/ /\|/g')
           for ipk in $(find openwrt-sdk/bin -name *.ipk); do
             src=$(tar -xOf ${ipk} ./control.tar.gz | tar -xzOf - ./control | grep '^Source:' | awk -F: '{print $2}' | xargs)
@@ -80,16 +82,30 @@ jobs:
             opkg-make-index /working > /working/Packages
             gzip -k /working/Packages
           "
-          cp ${{ github.workspace }}/openwrt/keys/* ipks_built
-          echo ${{ secrets.USIGN_PRIVATE }} | base64 -d > private.key
-          openwrt-sdk/staging_dir/host/bin/usign -S -m ipks_built/Packages -s private.key
-          echo > private.key
 
-      - name: Upload ipk
+          if [[ -n "${USIGN_PRIVATE}" && -n "${USIGN_PUBLIC}" ]]; then
+            echo ${USIGN_PUBLIC}  | base64 -d > public.key
+            echo ${USIGN_PRIVATE} | base64 -d > private.key
+            FINGER_PRINT=$(openwrt-sdk/staging_dir/host/bin/usign -F -p public.key)
+            cp public.key ipks_built/${FINGER_PRINT}
+            openwrt-sdk/staging_dir/host/bin/usign -S -m ipks_built/Packages -s private.key
+            rm -rf private.key
+          fi
+        env:
+          USIGN_PUBLIC:  ${{ secrets.USIGN_PUBLIC }}
+          USIGN_PRIVATE: ${{ secrets.USIGN_PRIVATE }}
+
+      - name: Check built result
+        run: |
+          cat ipks_out
+
+      - name: Upload build cache
         uses: actions/upload-artifact@v4
         with:
-          name: ipk-${{ matrix.target.name }}
-          path: ipks_feed/**
+          name: ${{ matrix.target.name }}
+          path: |
+            openwrt-sdk
+            ipks_feed
 
       - name: Update openwrt release
         uses: ncipollo/release-action@v1
@@ -100,3 +116,4 @@ jobs:
           removeArtifacts: true
           artifacts: ipks_built/*
           token: ${{ github.token }}
+
