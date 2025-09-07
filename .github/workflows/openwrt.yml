@@ -58,6 +58,10 @@ jobs:
             done
           done
 
+      - name: Build rust
+        run: |
+	  make package/rust/compile V=s || echo "xxxxx Failed: rust xxxxx"
+
       - name: Prepare solution
         run: |
           mkdir -p ipks_feed
