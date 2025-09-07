@@ -60,6 +60,7 @@ jobs:
 
       - name: Build rust
         run: |
+          cd openwrt-sdk
           make package/rust/compile V=s || echo "xxxxx Failed: rust xxxxx"
 
       - name: Prepare solution
