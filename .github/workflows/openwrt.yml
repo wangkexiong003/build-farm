@@ -45,7 +45,7 @@ jobs:
           ${{ github.workspace }}/openwrt/setup.sh "${PWD}"
           make defconfig
 
-      - name: Build
+      - name: Build our feeds
         run: |
           cd openwrt-sdk
           for feed in ${FEEDS_EXTRA}; do
@@ -58,17 +58,10 @@ jobs:
             done
           done
 
-      - name: Build rust
-        run: |
-          cd openwrt-sdk
-          ./scripts/feeds install rust
-          make package/rust/compile V=s || echo "xxxxx Failed: rust xxxxx"
-
-      - name: Prepare solution
+      - name: Prepare ipks for our feeds
         run: |
           mkdir -p ipks_feed
           mkdir -p ipks_built
-          find openwrt-sdk/bin -name *.ipk > ipks_out
 
           FEED_REGEXP=$(echo "${FEEDS_EXTRA}" | sed 's/ /\|/g')
           for ipk in $(find openwrt-sdk/bin -name *.ipk); do
@@ -82,6 +75,17 @@ jobs:
             fi
           done
 
+      - name: Build test
+        run: |
+          cd openwrt-sdk
+          make package/ripgrep/compile V=s || echo "xxxxx Failed: ripgrep xxxxx"
+
+      - name: Check result
+        run: |
+          find openwrt-sdk/bin -name *.ipk
+
+      - name: Make private opkg repository
+        run: |
           docker run -v $PWD/ipks_built:/working alpine sh -c "
             echo https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories
             apk add opkg-utils
@@ -101,10 +105,6 @@ jobs:
           USIGN_PUBLIC:  ${{ secrets.USIGN_PUBLIC }}
           USIGN_PRIVATE: ${{ secrets.USIGN_PRIVATE }}
 
-      - name: Check built result
-        run: |
-          cat ipks_out
-
       - name: Upload build cache
         uses: actions/upload-artifact@v4
         with:
@@ -112,6 +112,10 @@ jobs:
           path: |
             openwrt-sdk
             ipks_feed
+
+      - name: Clean old release and tags
+        run: |
+          gh release delete openwrt-${{ matrix.target.name }} --cleanup-tag --yes
 
       - name: Update openwrt release
         uses: ncipollo/release-action@v1
