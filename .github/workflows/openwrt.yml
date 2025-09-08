@@ -78,6 +78,7 @@ jobs:
       - name: Build test
         run: |
           cd openwrt-sdk
+          cat feeds/packages/lang/rust/Makefile
           make package/ripgrep/compile V=s || echo "xxxxx Failed: ripgrep xxxxx"
 
       - name: Check result
