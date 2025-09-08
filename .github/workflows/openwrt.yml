@@ -116,6 +116,8 @@ jobs:
       - name: Clean old release and tags
         run: |
           gh release delete openwrt-${{ matrix.target.name }} --cleanup-tag --yes
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Update openwrt release
         uses: ncipollo/release-action@v1
