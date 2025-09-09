@@ -49,7 +49,7 @@ jobs:
       - name: Configure feeds
         run: |
           cd openwrt-sdk
-          rm -rf bin tmp feeds package/* dl/*
+          rm -rf bin tmp feeds dl/*
 
           cp feeds.conf.default feeds.conf
           cat ${{ github.workspace }}/openwrt/feeds.conf >> feeds.conf
