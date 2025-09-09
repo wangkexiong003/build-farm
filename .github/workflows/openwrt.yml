@@ -39,7 +39,7 @@ jobs:
 
       - name: Check cache
         run: |
-          if [ ! -d openwrt ]; then
+          if [ ! -d openwrt-sdk ]; then
             wget "${{ matrix.target.sdk_url }}"
             tar --use-compress-program=zstd -xvf openwrt-sdk-*.tar.zst
             rm -rf *.tar.zst
