@@ -45,6 +45,7 @@ jobs:
             tar --use-compress-program=zstd -xvf openwrt-sdk-*.tar.zst
             rm -rf *.tar.zst
             mv openwrt-sdk-* openwrt-sdk
+            touch .fresh-build
           fi
 
       - name: Configure feeds
