@@ -36,7 +36,7 @@ jobs:
           path: ${{ github.workspace }}/openwrt-sdk
           key: openwrt-${{ matrix.target.name }}-${{ env.TIMESTAMP }}
           restore-keys: |
-            key: openwrt-${{ matrix.target.name }}
+            openwrt-${{ matrix.target.name }}
 
       - name: Check cache
         run: |
