@@ -45,6 +45,7 @@ jobs:
             tar --use-compress-program=zstd -xvf openwrt-sdk-*.tar.zst
             rm -rf *.tar.zst
             mv openwrt-sdk-* openwrt-sdk
+            echo "+++++ Create fresh build flag +++++"
             touch .fresh-build
           fi
 
@@ -59,6 +60,7 @@ jobs:
           echo "FEEDS_EXTRA=${FEEDS_EXTRA}" >> ${GITHUB_ENV}
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          echo
 
           chmod +x ${{ github.workspace }}/openwrt/setup.sh
           ${{ github.workspace }}/openwrt/setup.sh "${PWD}"
