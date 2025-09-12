@@ -45,13 +45,15 @@ jobs:
             tar --use-compress-program=zstd -xvf openwrt-sdk-*.tar.zst
             rm -rf *.tar.zst
             mv openwrt-sdk-* openwrt-sdk
+
+            echo "+++++ create fresh build flag +++++"
+            touch .fresh-build
           fi
 
       - name: Configure feeds
         run: |
           cd openwrt-sdk
-          # DO NOT remove feeds directroy, otherwise rust will be rebuilt
-          rm -rf bin tmp
+          rm -rf bin tmp #feeds
 
           cp feeds.conf.default feeds.conf
           cat ${{ github.workspace }}/openwrt/feeds.conf >> feeds.conf
