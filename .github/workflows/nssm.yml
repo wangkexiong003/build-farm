@@ -1,0 +1,74 @@
+name: build NSSM
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [ Win32, x64 ]
+        configuration: [ Release ]
+
+    steps:
+      - name: Checkout workflow files
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Clone NSSM source
+        run: git clone https://git.nssm.cc/nssm/nssm.git nssm-source
+
+      - name: Copy project files
+        run: |
+          Copy-Item nssm\nssm.vcxproj nssm-source\nssm.vcxproj
+          Copy-Item nssm\nssm.sln nssm-source\nssm.sln
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Tag latest commit with version from git log
+        id: tag
+        run: |
+          $version = git log --format=%s --grep="NSSM [0-9]\." | Select-Object -First 1 | Select-String -Pattern "\d\.\d+" | ForEach-Object { $_.Matches.Value }
+          if (-not $version) { throw "Could not determine NSSM version from git log" }
+          Write-Host "Detected version: $version"
+          git tag "$version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+        working-directory: nssm-source
+
+      - name: Generate version header
+        run: call version.cmd
+        shell: cmd
+        working-directory: nssm-source
+
+      - name: Build NSSM
+        run: msbuild nssm.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} /m
+        shell: cmd
+        working-directory: nssm-source
+
+      - name: Rename output binary
+        id: rename
+        run: |
+          $platform = "${{ matrix.platform }}".ToLower()
+          $src = "nssm-source/out/${{ matrix.platform }}/nssm.exe"
+          $dst = "nssm-source/out/${{ matrix.platform }}/nssm-$platform.exe"
+          Move-Item -Path $src -Destination $dst
+
+          "platform=$platform" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nssm.v${{ steps.tag.outputs.version }}
+          name: NSSM v${{ steps.tag.outputs.version }}
+          files: nssm-source/out/${{ matrix.platform }}/nssm-${{ steps.rename.outputs.platform }}.exe
+          body: build nssm ${{ steps.tag.outputs.version }}
+          draft: false
+          prerelease: false
